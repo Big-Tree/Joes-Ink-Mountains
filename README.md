@@ -1,19 +1,19 @@
-# Shan Shui Wallpaper Generator
+# Joe's Ink Mountains
 
-Generate beautiful procedural Chinese landscape wallpapers from [{Shan, Shui}*](https://lingdong-.github.io/shan-shui-inf/).
+Generate beautiful procedural Chinese ink landscape wallpapers. Powered by [{Shan, Shui}*](https://lingdong-.github.io/shan-shui-inf/).
 
 ![Screenshot1](/screenshots/screen001.jpg?raw=true "")
 ![Screenshot2](/screenshots/screen002.jpg?raw=true "")
 
-## Setup (one time only)
+## Setup (one time only, Joe)
 
 1. **Install Node.js** — go to https://nodejs.org and download the LTS version. Run the installer (just keep clicking Next).
 
-2. **Download this folder** — click the green "Code" button on GitHub, then "Download ZIP". Unzip it somewhere on your computer.
+2. **Download this folder** — click the green "Code" button above, then "Download ZIP". Unzip it somewhere on your computer.
 
 ## Generating wallpapers
 
-1. Open the folder you unzipped.
+1. Open the folder you unzipped, Joe.
 2. Double-click the bat file for your monitor resolution:
    - **`generate.bat`** — 1920x1080 (Full HD)
    - **`generate-2k.bat`** — 2560x1440 (QHD)
@@ -31,7 +31,7 @@ const COUNT = 10; // How many wallpapers to generate
 
 Save the file and run the bat file again.
 
-## Setting as your Windows wallpaper
+## Setting as your Windows wallpaper, Joe
 
 1. Open **Settings > Personalisation > Background**.
 2. Set "Personalise your background" to **Slideshow**.
