@@ -1,0 +1,8 @@
+{
+  "name": "shan-shui-wallpapers",
+  "version": "1.0.0",
+  "description": "Generate Chinese landscape wallpapers",
+  "dependencies": {
+    "puppeteer": "^24.0.0"
+  }
+}
