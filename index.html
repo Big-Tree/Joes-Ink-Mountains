@@ -75,10 +75,84 @@
       }
     }
   }
+  // ---------------------------------------------------------------
+  // DYSTOPIA: 0 = the original serene landscape, 1 = full late-capitalist
+  // collapse. Everything below is a no-op at level 0, so the live site and
+  // the original artwork are untouched unless ?dyst=... is passed.
+  // ---------------------------------------------------------------
+  var DYSTOPIA = {
+    level: 0,
+    chunkY: 0, // depth of the chunk currently being generated
+    towers: [], // tower tops get registered here so wires can be strung later
+    blocks: [], // tower blocks, for stringing skybridges between
+    // CHAPTER TWO. The cyberpunk phase only begins once the landscape has
+    // already been thoroughly commercialised, so the slideshow reads as one
+    // continuous story: serene -> retail park -> megacity.
+    CH2_START: 0.5,
+    // 0 until CH2_START, then ramps to 1 by the end. Chapter two effects
+    // scale off this rather than off `level` directly.
+    cyber: function() {
+      if (DYSTOPIA.level <= DYSTOPIA.CH2_START) return 0;
+      return (DYSTOPIA.level - DYSTOPIA.CH2_START) / (1 - DYSTOPIA.CH2_START);
+    },
+    // Late chapter three. A minority of blocks stop being buildings and start
+    // being infrastructure: tall enough to leave the top of the frame, so you
+    // never find out where they end. Kept a minority on purpose — if they all
+    // did it there would be nothing to measure them against.
+    MEGA_START: 0.85,
+    mega: function() {
+      if (DYSTOPIA.level <= DYSTOPIA.MEGA_START) return 0;
+      return (
+        (DYSTOPIA.level - DYSTOPIA.MEGA_START) / (1 - DYSTOPIA.MEGA_START)
+      );
+    },
+    // Tower blocks cluster into a downtown rather than dotting the valley
+    // evenly, so this only enforces enough spacing to stop them overlapping.
+    allowBlock: function(x) {
+      var c = DYSTOPIA.cyber();
+      if (c <= 0) return false;
+      if (DYSTOPIA.blocks.length >= 6 + Math.round(c * 44)) return false;
+      var mind = 26 - c * 12;
+      for (var i = 0; i < DYSTOPIA.blocks.length; i++) {
+        if (Math.abs(DYSTOPIA.blocks[i].x - x) < mind) {
+          return false;
+        }
+      }
+      return true;
+    },
+    lerp: function(a, b) {
+      return a + (b - a) * DYSTOPIA.level;
+    },
+    // The density thresholds below are compared against ns^4, so a linear
+    // ramp saturates almost immediately. Easing keeps the early and middle
+    // of the slideshow readable and saves the real mess for the end.
+    ease: function(a, b, p) {
+      return a + (b - a) * Math.pow(DYSTOPIA.level, p == undefined ? 2.2 : p);
+    },
+    // Transmission lines march across a valley — they don't huddle. Candidate
+    // tower sites are plentiful, so spacing is what actually sets the density:
+    // roughly 4 towers across the visible width at the start, 10 at the worst.
+    allowTower: function(x) {
+      if (DYSTOPIA.level <= 0) {
+        return true; // leave the original artwork exactly as it was
+      }
+      var mind = DYSTOPIA.ease(420, 165);
+      for (var i = 0; i < DYSTOPIA.towers.length; i++) {
+        if (Math.abs(DYSTOPIA.towers[i].x - x) < mind) {
+          return false;
+        }
+      }
+      return true;
+    },
+  };
+
   SEED = "" + new Date().getTime();
   parseArgs({
     seed: function(x) {
       SEED = x == "" ? SEED : x;
+    },
+    dyst: function(x) {
+      DYSTOPIA.level = Math.max(0, Math.min(1, parseFloat(x) || 0));
     },
   });
   Math.seed(SEED);
@@ -1802,6 +1876,11 @@
     };
 
     this.mountain = function(xoff, yoff, seed, args) {
+      // Chunks are painted back to front in order of their y. Anything this
+      // mountain registers for later (towers, tower blocks) has to remember
+      // which layer it was drawn in, or its power lines end up floating over
+      // the hills that are supposed to be hiding it.
+      DYSTOPIA.chunkY = yoff;
       var args = args != undefined ? args : {};
       var hei = args.hei != undefined ? args.hei : 100 + Math.random() * 400;
       var wid = args.wid != undefined ? args.wid : 400 + Math.random() * 200;
@@ -1934,7 +2013,7 @@
             var ns = Noise.noise(i * 0.2, j * 0.05, seed);
             return (
               j % 2 &&
-              ns * ns * ns * ns < 0.012 &&
+              ns * ns * ns * ns < DYSTOPIA.ease(0.012, 0.001, 1.5) &&
               Math.abs(ptlist[i][j][1]) / h < 0.3
             );
           },
@@ -1978,7 +2057,8 @@
           function(i, j) {
             var ns = Noise.noise(i * 0.2, j * 0.05, seed);
             return (
-              (j == 0 || j == ptlist[i].length - 1) && ns * ns * ns * ns < 0.012
+              (j == 0 || j == ptlist[i].length - 1) &&
+              ns * ns * ns * ns < DYSTOPIA.ease(0.012, 0.001, 1.5)
             );
           },
           function(veglist, i) {
@@ -1990,7 +2070,9 @@
       //BOTT ARCH
       vegetate(
         function(x, y) {
-          var tt = randChoice([0, 0, 1, 1, 1, 2]);
+          var tt = randChoice(
+            DYSTOPIA.level > 0.55 ? [1, 1, 1, 1, 2] : [0, 0, 1, 1, 1, 2],
+          );
           if (tt == 1) {
             return Arch.arch02(x + xoff, y + yoff, seed, {
               wid: normRand(40, 70),
@@ -2011,7 +2093,7 @@
           return (
             i != 0 &&
             (j == 1 || j == ptlist[i].length - 2) &&
-            ns * ns * ns * ns < 0.008
+            ns * ns * ns * ns < DYSTOPIA.ease(0.008, 0.1)
           );
         },
         function(veglist, i) {
@@ -2038,17 +2120,56 @@
         },
       );
 
+      //TOWER BLOCKS
+      vegetate(
+        function(x, y) {
+          if (!DYSTOPIA.allowBlock(x + xoff)) {
+            return "";
+          }
+          var c = DYSTOPIA.cyber();
+          var m = DYSTOPIA.mega();
+          var hei = normRand(60, 110) + c * normRand(60, 190);
+          var wid = normRand(28, 52);
+          // Past MEGA_START a growing share of them run clean off the top of
+          // the frame. Slender rather than bulky, so they read as impossibly
+          // tall instead of just large.
+          if (m > 0 && Math.random() < 0.18 + m * 0.32) {
+            hei += normRand(150, 320) * (0.4 + 0.6 * m);
+            wid *= normRand(0.7, 0.95);
+          }
+          return Arch.towerBlock01(x + xoff, y + yoff, seed, {
+            hei: hei,
+            wid: wid,
+            rot: Math.random(),
+            lit: c * normRand(0.1, 0.3),
+          });
+        },
+        function(i, j) {
+          var ns = Noise.noise(i * 0.2, j * 0.05, seed + 30 * Math.PI);
+          return (
+            (j == 1 || j == ptlist[i].length - 2) &&
+            ns * ns * ns * ns < 0.02 + DYSTOPIA.cyber() * 0.25
+          );
+        },
+        function(veglist, i) {
+          return true;
+        },
+      );
+
       //TRANSM
       vegetate(
         function(x, y) {
+          if (!DYSTOPIA.allowTower(x + xoff)) {
+            return "";
+          }
           return Arch.transmissionTower01(x + xoff, y + yoff, seed);
         },
         function(i, j) {
           var ns = Noise.noise(i * 0.2, j * 0.05, seed + 20 * Math.PI);
           return (
-            i % 2 == 0 &&
+            (DYSTOPIA.level > 0.65 || i % 2 == 0) &&
             (j == 1 || j == ptlist[i].length - 2) &&
-            ns * ns * ns * ns < 0.002
+            ns * ns * ns * ns < DYSTOPIA.ease(0.002, 0.14)
           );
         },
         function(veglist, i) {
@@ -3206,6 +3327,151 @@
       return canv;
     };
 
+    // CHAPTER TWO: the tower blocks. Built out of the same box+deco pair the
+    // pagodas use, so they sit in the same ink-wash world rather than looking
+    // pasted on — just scaled up and repeated until they stop being buildings
+    // and start being a skyline.
+    this.towerBlock01 = function(xoff, yoff, seed, args) {
+      var args = args != undefined ? args : {};
+      var hei = args.hei != undefined ? args.hei : 160;
+      var wid = args.wid != undefined ? args.wid : 44;
+      var rot = args.rot != undefined ? args.rot : 0.65;
+      var per = args.per != undefined ? args.per : 6;
+      var lit = args.lit != undefined ? args.lit : 0; // fraction of windows lit
+
+      seed = seed != undefined ? seed : 0;
+      var canv = "";
+
+      // Floors are a fixed real-world height, so taller towers get more of
+      // them rather than stretched ones.
+      var floors = Math.max(4, Math.round(hei / 11));
+      var bays = Math.max(2, Math.round(wid / 9));
+
+      // Some towers step inwards partway up.
+      var setback = Math.random() < 0.35;
+      var lowHei = setback ? hei * normRand(0.55, 0.75) : hei;
+
+      var shaft = function(y, h, w) {
+        return box(xoff, y, {
+          tra: false,
+          bot: false,
+          hei: h,
+          wid: w,
+          rot: rot,
+          wei: 1.2,
+          per: per,
+          dec: function(a) {
+            return deco(3, {
+              pul: a.pul,
+              pur: a.pur,
+              pdl: a.pdl,
+              pdr: a.pdr,
+              hsp: [1, bays],
+              vsp: [1, Math.max(2, Math.round((h / hei) * floors))],
+            });
+          },
+        });
+      };
+
+      canv += shaft(yoff, lowHei, wid);
+      if (setback) {
+        canv += shaft(yoff - lowHei, hei - lowHei, wid * normRand(0.55, 0.8));
+      }
+
+      var topW = setback ? wid * 0.68 : wid;
+      var topY = yoff - hei;
+
+      // Parapet, so the roofline reads as flat and hard against the sky.
+      canv += stroke(
+        [
+          [xoff - topW * 0.5, topY],
+          [xoff + topW * 0.5, topY],
+        ],
+        { col: "rgba(100,100,100,0.5)", noi: 1, wid: 1.6 },
+      );
+
+      // Roof clutter: an aerial mast, sometimes a water tank. This is what
+      // makes a row of boxes read as a city instead of a bar chart.
+      var mast = Math.min(normRand(0.2, 0.5) * hei, normRand(18, 42));
+      canv += stroke([[xoff, topY], [xoff, topY - mast]], {
+        col: "rgba(100,100,100,0.45)",
+        noi: 1,
+        wid: 1,
+      });
+      for (var i = 1; i <= 2; i++) {
+        var my = topY - mast * (i / 3);
+        canv += stroke([[xoff - 3, my], [xoff + 3, my]], {
+          col: "rgba(100,100,100,0.4)",
+          noi: 1,
+          wid: 0.8,
+        });
+      }
+      // Aircraft warning light.
+      canv +=
+        "<circle cx='" +
+        xoff +
+        "' cy='" +
+        (topY - mast) +
+        "' r='1.6' fill='rgba(90,90,90,0.75)'/>";
+
+      if (Math.random() < 0.4) {
+        var tw = topW * 0.3;
+        canv += box(xoff + topW * 0.25, topY, {
+          tra: false,
+          bot: false,
+          hei: tw * 0.9,
+          wid: tw,
+          rot: rot,
+          wei: 1,
+          per: per * 0.4,
+          dec: function(a) {
+            return [];
+          },
+        });
+      }
+
+      // Lit windows. A few filled cells picked off the same grid the deco
+      // strokes were drawn on, so they land on real windows.
+      if (lit > 0) {
+        var surf = (rot < 0.5) * 2 - 1;
+        var mid = -wid * 0.5 + wid * rot;
+        for (var f = 0; f < floors; f++) {
+          for (var b = 0; b < bays; b++) {
+            if (Math.random() > lit) continue;
+            var u = (b + 0.5) / bays;
+            var v = (f + 0.5) / floors;
+            // Interpolate across the front face of the box.
+            var xl = surf * wid * 0.5;
+            var x = xl * (1 - u) + mid * u;
+            var ytop = -lowHei + per * u;
+            var ybot = 0 + per * u;
+            var y = ytop * (1 - v) + ybot * v;
+            var cw = (Math.abs(mid - xl) / bays) * 0.55;
+            var ch = (lowHei / floors) * 0.45;
+            canv +=
+              "<rect x='" +
+              (xoff + x - cw / 2) +
+              "' y='" +
+              (yoff + y - ch / 2) +
+              "' width='" +
+              cw +
+              "' height='" +
+              ch +
+              "' fill='rgba(90,90,80,0.45)'/>";
+          }
+        }
+      }
+
+      DYSTOPIA.blocks.push({
+        x: xoff,
+        y: yoff,
+        z: DYSTOPIA.chunkY,
+        top: topY,
+        wid: topW,
+      });
+      return canv;
+    };
+
     this.boat01 = function(xoff, yoff, seed, args) {
       var args = args != undefined ? args : {};
       var len = args.len != undefined ? args.len : 120;
@@ -3276,6 +3542,16 @@
 
       var p30 = [-wid * 0.5, 0];
       var p31 = [wid * 0.5, 0];
+
+      // Remember where the crossarms are so power lines can be strung
+      // between neighbouring towers after the whole scene is generated.
+      DYSTOPIA.towers.push({
+        x: xoff,
+        y: yoff,
+        z: DYSTOPIA.chunkY,
+        top: yoff - hei * 0.85,
+        wid: wid * 0.7,
+      });
 
       var bch = [[0.7, -0.85], [1, -0.675], [0.7, -0.5]];
 
@@ -3978,7 +4254,15 @@
         xmin - MEM.cwid < MEM.chunks[i].x &&
         MEM.chunks[i].x < xmax + MEM.cwid
       ) {
-        MEM.canv += MEM.chunks[i].canv;
+        // Each chunk keeps its own group so that things drawn afterwards
+        // (power lines, skybridges) can be slotted in at the right depth
+        // instead of being painted over the top of the whole scene.
+        MEM.canv +=
+          "<g class='chunk' data-z='" +
+          MEM.chunks[i].y +
+          "'>" +
+          MEM.chunks[i].canv +
+          "</g>";
       }
     }
   }
