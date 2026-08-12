@@ -1,3 +1,8 @@
 node_modules/
 wallpapers/
 cat-previews/
+dystopia-previews/
+
+# Generated contact sheet — 1.2MB of base64'd frames, rebuilt from whatever
+# is in wallpapers/ rather than edited by hand.
+gallery.html
